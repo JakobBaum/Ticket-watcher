@@ -1,8 +1,8 @@
 {
   "watched_events": [
     {
-      "artist": "Coldplay",
-      "cities": ["London"],
+      "artist": "Helene Fischer",
+      "cities": ["Wien"],
       "date_from": "2026-01-01",
       "date_to": "2027-12-31",
       "platforms": ["ticketmaster"]
