@@ -1,11 +1,11 @@
 {
   "watched_events": [
     {
-      "artist": "Ariana Grande",
+      "artist": "Coldplay",
       "cities": ["London"],
-      "date_from": "2026-08-16",
-      "date_to": "2026-09-01",
-      "platforms": ["ticketmaster", "axs"]
+      "date_from": "2026-01-01",
+      "date_to": "2027-12-31",
+      "platforms": ["ticketmaster"]
     }
   ]
 }
