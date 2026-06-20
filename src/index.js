@@ -66,11 +66,26 @@ async function runCheckCycle() {
                 });
                 notificationCount++;
               } else {
+                // Check if this is a fatal Telegram error (invalid token/chat)
+                const isFatalTelegramError = notificationResult.error &&
+                  (notificationResult.error.includes('401') ||
+                   notificationResult.error.includes('404') ||
+                   notificationResult.error.includes('not found') ||
+                   notificationResult.error.includes('Unauthorized') ||
+                   notificationResult.error.includes('TELEGRAM_BOT_TOKEN') ||
+                   notificationResult.error.includes('TELEGRAM_CHAT_ID'));
+
                 logger.log(logger.ERROR, `Failed to send notification: ${notificationResult.error}`);
                 stateMgr.addError({
                   message: notificationResult.error,
                   platform: platform
                 });
+
+                if (isFatalTelegramError) {
+                  logger.log(logger.ERROR, `Fatal Telegram error - exiting with code 1`);
+                  return process.exit(1);
+                }
+
                 errorCount++;
               }
             }
