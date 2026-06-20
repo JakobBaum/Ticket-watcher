@@ -1,0 +1,23 @@
+{
+  "name": "ticket-watcher",
+  "version": "1.0.0",
+  "description": "Automated ticket availability monitor for Ticketmaster and AXS",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo \"Tests not yet implemented\"",
+    "lint": "eslint src/"
+  },
+  "keywords": ["tickets", "monitoring", "telegram"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0",
+    "node-telegram-bot-api": "^0.63.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0"
+  }
+}
