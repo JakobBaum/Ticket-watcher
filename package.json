@@ -13,7 +13,6 @@
   "license": "MIT",
   "dependencies": {
     "axios": "^1.6.0",
-    "cheerio": "^1.0.0",
     "node-telegram-bot-api": "^0.63.0",
     "dotenv": "^16.0.0"
   },

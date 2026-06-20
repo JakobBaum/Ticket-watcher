@@ -16,11 +16,17 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
       }
     });
 
-    // Simple heuristic: if response contains "no results" or similar, no tickets
     const pageContent = response.data.toLowerCase();
-    const found = !pageContent.includes('no results') &&
-                  !pageContent.includes('no events') &&
-                  pageContent.length > 1000; // Page has content
+    const isBlocked = pageContent.includes('captcha') ||
+                      pageContent.includes('robot') ||
+                      pageContent.includes('cf-challenge') ||
+                      pageContent.includes('access denied');
+    const hasNegative = pageContent.includes('no results') ||
+                        pageContent.includes('no events');
+    const hasPositive = pageContent.includes('buy tickets') ||
+                        pageContent.includes('tickets from') ||
+                        pageContent.includes('get tickets');
+    const found = !isBlocked && !hasNegative && hasPositive;
 
     // Extract first result URL if found (simplified)
     let eventUrl = null;

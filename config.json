@@ -1,7 +1,4 @@
 {
-  "telegram": {
-    "chat_id": "YOUR_CHAT_ID"
-  },
   "watched_events": [
     {
       "artist": "Taylor Swift",

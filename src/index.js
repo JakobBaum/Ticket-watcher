@@ -13,7 +13,7 @@ async function runCheckCycle() {
   try {
     logger.log(logger.START, 'Check started');
 
-    // Load and validate config
+    // Load and validate config (includes env var checks)
     let config;
     try {
       config = configMgr.getConfig();
@@ -27,26 +27,31 @@ async function runCheckCycle() {
       return process.exit(1);
     }
 
-    // Check each watched event
+    // Check each watched event — scrape each city independently
     for (const event of config.watched_events) {
       for (const platform of event.platforms) {
-        try {
-          let result;
+        for (const city of event.cities) {
+          try {
+            let result;
 
-          if (platform === 'ticketmaster') {
-            result = await scrapeTicketmaster(event.artist, event.cities[0], event.date_from, event.date_to);
-          } else if (platform === 'axs') {
-            result = await scrapeAXS(event.artist, event.cities[0], event.date_from, event.date_to);
-          } else {
-            logger.log(logger.WARN, `Unknown platform: ${platform}`);
-            continue;
-          }
+            if (platform === 'ticketmaster') {
+              result = await scrapeTicketmaster(event.artist, city, event.date_from, event.date_to);
+            } else if (platform === 'axs') {
+              result = await scrapeAXS(event.artist, city, event.date_from, event.date_to);
+            } else {
+              logger.log(logger.WARN, `Unknown platform: ${platform}`);
+              continue;
+            }
 
-          logger.log(logger.CHECK, `${platform.charAt(0).toUpperCase() + platform.slice(1)}: ${event.artist} (${event.cities[0]}, ${event.date_from}) - Found: ${result.found}`);
+            logger.log(logger.CHECK, `${platform.charAt(0).toUpperCase() + platform.slice(1)}: ${event.artist} (${city}, ${event.date_from}) - Found: ${result.found}`);
 
-          // If tickets found, send notification for each city
-          if (result.found && result.url) {
-            for (const city of event.cities) {
+            if (result.found && result.url) {
+              // Skip if already notified for this artist/city/date/platform
+              if (stateMgr.hasNotification({ artist: event.artist, city, date: event.date_from, platform })) {
+                logger.log(logger.CHECK, `Already notified: ${event.artist} - ${city} - ${platform}`);
+                continue;
+              }
+
               const notificationResult = await telegramNotifier.sendNotification({
                 artist: event.artist,
                 city: city,
@@ -66,7 +71,6 @@ async function runCheckCycle() {
                 });
                 notificationCount++;
               } else {
-                // Check if this is a fatal Telegram error (invalid token/chat)
                 const isFatalTelegramError = notificationResult.error &&
                   (notificationResult.error.includes('401') ||
                    notificationResult.error.includes('404') ||
@@ -89,14 +93,14 @@ async function runCheckCycle() {
                 errorCount++;
               }
             }
+          } catch (error) {
+            logger.log(logger.ERROR, `Error checking ${platform} / ${city}: ${error.message}`);
+            stateMgr.addError({
+              message: error.message,
+              platform: platform
+            });
+            errorCount++;
           }
-        } catch (error) {
-          logger.log(logger.ERROR, `Error checking ${platform}: ${error.message}`);
-          stateMgr.addError({
-            message: error.message,
-            platform: platform
-          });
-          errorCount++;
         }
       }
     }

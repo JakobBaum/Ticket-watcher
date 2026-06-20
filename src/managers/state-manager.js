@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const STATE_FILE = path.join(__dirname, '../../state.json');
+const MAX_ERRORS = 100;
 
 const DEFAULT_STATE = {
   notifications_sent: [],
@@ -14,12 +15,25 @@ function getState() {
     return JSON.parse(JSON.stringify(DEFAULT_STATE));
   }
 
-  const rawData = fs.readFileSync(STATE_FILE, 'utf8');
-  return JSON.parse(rawData);
+  try {
+    const rawData = fs.readFileSync(STATE_FILE, 'utf8');
+    return JSON.parse(rawData);
+  } catch {
+    return JSON.parse(JSON.stringify(DEFAULT_STATE));
+  }
 }
 
 function saveState(state) {
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
+  const tmp = STATE_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2), 'utf8');
+  fs.renameSync(tmp, STATE_FILE);
+}
+
+function hasNotification({ artist, city, date, platform }) {
+  const state = getState();
+  return state.notifications_sent.some(
+    n => n.artist === artist && n.city === city && n.date === date && n.platform === platform
+  );
 }
 
 function addNotification(notification) {
@@ -38,6 +52,9 @@ function addError(error) {
     error: error.message || String(error),
     platform: error.platform || 'unknown'
   });
+  if (state.errors.length > MAX_ERRORS) {
+    state.errors = state.errors.slice(-MAX_ERRORS);
+  }
   saveState(state);
 }
 
@@ -49,6 +66,7 @@ function updateLastCheck() {
 
 module.exports = {
   getState,
+  hasNotification,
   addNotification,
   addError,
   updateLastCheck

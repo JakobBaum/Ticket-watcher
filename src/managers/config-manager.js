@@ -15,11 +15,12 @@ function getConfig() {
 function validateConfig(config) {
   const errors = [];
 
-  // Validate telegram section
-  if (!config.telegram) {
-    errors.push('Missing "telegram" section');
-  } else if (!config.telegram.chat_id) {
-    errors.push('Missing "telegram.chat_id"');
+  // Telegram credentials must be set via environment variables
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    errors.push('TELEGRAM_BOT_TOKEN not set in environment');
+  }
+  if (!process.env.TELEGRAM_CHAT_ID) {
+    errors.push('TELEGRAM_CHAT_ID not set in environment');
   }
 
   // Validate watched_events array
