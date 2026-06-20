@@ -19,6 +19,13 @@ jobs:
           key: ticket-watcher-state-${{ github.run_id }}
           restore-keys: ticket-watcher-state-
 
+      - name: Restore logs
+        uses: actions/cache@v4
+        with:
+          path: logs/
+          key: ticket-watcher-logs-${{ github.run_id }}
+          restore-keys: ticket-watcher-logs-
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
