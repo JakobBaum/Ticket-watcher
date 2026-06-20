@@ -28,13 +28,10 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
                         pageContent.includes('get tickets');
     const found = !isBlocked && !hasNegative && hasPositive;
 
-    // Extract first result URL if found (simplified)
     let eventUrl = null;
     if (found) {
       const urlMatch = response.data.match(/href="(https:\/\/www\.ticketmaster\.com\/[^"]+)"/);
-      if (urlMatch) {
-        eventUrl = urlMatch[1];
-      }
+      eventUrl = urlMatch ? urlMatch[1] : searchUrl;
     }
 
     return {
