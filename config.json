@@ -1,21 +1,21 @@
 {
   "watched_events": [
     {
-      "artist": "Helene Fischer",
-      "cities": ["Vienna"],
+      "artist": "shinedown",
+      "cities": ["Las Vegas"],
       "date_from": "2026-01-01",
       "date_to": "2027-12-31",
       "platforms": [
-        { "name": "ticketmaster", "url": "https://www.ticketmaster.com/helene-fischer-tickets/artist/1652327" }
+        { "name": "ticketmaster", "url": "https://www.ticketmaster.com/shinedown-tickets/artist/8804977" }
       ]
     },
     {
-      "artist": "Electric Forest",
-      "cities": ["Rothbury"],
+      "artist": "Ice Nine Kills",
+      "cities": ["London"],
       "date_from": "2026-01-01",
       "date_to": "2026-12-31",
       "platforms": [
-        { "name": "axs", "url": "https://www.axs.com/events/1158551/electric-forest-2026-tickets" }
+        { "name": "axs", "url": "https://www.axs.com/de/events/1483248/ice-nine-kills-tickets" }
       ]
     }
   ]
