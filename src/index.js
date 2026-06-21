@@ -37,7 +37,7 @@ async function runCheckCycle() {
             if (platform === 'ticketmaster') {
               result = await scrapeTicketmaster(event.url || event.artist, city, event.date_from, event.date_to);
             } else if (platform === 'axs') {
-              result = await scrapeAXS(event.artist, city, event.date_from, event.date_to);
+              result = await scrapeAXS(event.url || event.artist, city, event.date_from, event.date_to);
             } else {
               logger.log(logger.WARN, `Unknown platform: ${platform}`);
               continue;
