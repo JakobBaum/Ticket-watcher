@@ -3,6 +3,8 @@ const logger = require('../utils/logger');
 const CITY_ALIASES = {
   'vienna': 'wien',
   'wien': 'vienna',
+  'las vegas': 'paradise',
+  'paradise': 'las vegas',
 };
 
 const CHALLENGE_PAGE_MAX_BYTES = 50000;

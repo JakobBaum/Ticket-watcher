@@ -23,6 +23,11 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
     const page = await context.newPage();
 
     await page.goto(fetchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 10000 });
+    } catch (_) {
+      // networkidle timed out — page content is still usable
+    }
     const html = await page.content();
     const pageContent = html.toLowerCase();
 
@@ -43,10 +48,6 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
       const found = structuredResult !== null;
       const url = structuredResult?.url || (found ? fetchUrl : null);
       return { success: true, found, url, date: structuredResult?.date || null, platform: 'ticketmaster' };
-    }
-
-    if (isUrl(artist)) {
-      return { success: true, found: false, platform: 'ticketmaster' };
     }
 
     const hasPositive = pageContent.includes('buy tickets') ||

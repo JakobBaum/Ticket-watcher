@@ -96,10 +96,6 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
       return { success: true, found, url, date: structuredResult?.date || null, platform: 'axs' };
     }
 
-    if (isUrl(artist)) {
-      return { success: true, found: false, platform: 'axs' };
-    }
-
     const hasNegative = pageContent.includes('no results') || pageContent.includes('no events');
     const hasPositive = pageContent.includes('buy tickets') ||
                         pageContent.includes('tickets from') ||
