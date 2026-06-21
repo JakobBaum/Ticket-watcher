@@ -35,7 +35,7 @@ async function runCheckCycle() {
             let result;
 
             if (platform === 'ticketmaster') {
-              result = await scrapeTicketmaster(event.artist, city, event.date_from, event.date_to);
+              result = await scrapeTicketmaster(event.url || event.artist, city, event.date_from, event.date_to);
             } else if (platform === 'axs') {
               result = await scrapeAXS(event.artist, city, event.date_from, event.date_to);
             } else {
