@@ -1,29 +1,29 @@
-const axios = require('axios');
+const { chromium } = require('playwright');
 const { normalizeCity, isUrl, isSafeUrl, checkStructuredData, CHALLENGE_PAGE_MAX_BYTES } = require('./scraper-utils');
 const logger = require('../utils/logger');
 
 const TICKETMASTER_SEARCH_URL = 'https://www.ticketmaster.com/search';
 
 async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
+  const fetchUrl = isUrl(artist)
+    ? artist
+    : `${TICKETMASTER_SEARCH_URL}?keyword=${encodeURIComponent(artist)}&city=${encodeURIComponent(city)}`;
+
+  if (isUrl(artist) && !isSafeUrl(artist)) {
+    return { success: false, found: false, error: `Unsafe or non-HTTPS URL rejected: ${artist}`, platform: 'ticketmaster' };
+  }
+
+  let browser;
   try {
-    const fetchUrl = isUrl(artist)
-      ? artist
-      : `${TICKETMASTER_SEARCH_URL}?keyword=${encodeURIComponent(artist)}&city=${encodeURIComponent(city)}`;
-
-    if (isUrl(artist) && !isSafeUrl(artist)) {
-      return { success: false, found: false, error: `Unsafe or non-HTTPS URL rejected: ${artist}`, platform: 'ticketmaster' };
-    }
-
-    const response = await axios.get(fetchUrl, {
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9'
-      }
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      locale: 'en-US',
     });
+    const page = await context.newPage();
 
-    const html = response.data;
+    await page.goto(fetchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    const html = await page.content();
     const pageContent = html.toLowerCase();
 
     const isChallengePage = html.length < CHALLENGE_PAGE_MAX_BYTES &&
@@ -64,6 +64,8 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
     return { success: true, found, url: eventUrl, platform: 'ticketmaster' };
   } catch (error) {
     return { success: false, found: false, error: error.message, platform: 'ticketmaster' };
+  } finally {
+    if (browser) await browser.close();
   }
 }
 
