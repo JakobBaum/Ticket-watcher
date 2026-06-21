@@ -46,10 +46,11 @@ async function runCheckCycle() {
               continue;
             }
 
-            logger.log(logger.CHECK, `${platformName.charAt(0).toUpperCase() + platformName.slice(1)}: ${event.artist} (${city}, ${event.date_from}) - Found: ${result.found}`);
+            const eventDate = result.date || event.date_from;
+            logger.log(logger.CHECK, `${platformName.charAt(0).toUpperCase() + platformName.slice(1)}: ${event.artist} (${city}, ${eventDate}) - Found: ${result.found}`);
 
             if (result.found && result.url) {
-              if (stateMgr.hasNotification({ artist: event.artist, city, date: event.date_from, platform: platformName })) {
+              if (stateMgr.hasNotification({ artist: event.artist, city, date: eventDate, platform: platformName })) {
                 logger.log(logger.CHECK, `Already notified: ${event.artist} - ${city} - ${platformName}`);
                 continue;
               }
@@ -57,17 +58,17 @@ async function runCheckCycle() {
               const notificationResult = await telegramNotifier.sendNotification({
                 artist: event.artist,
                 city: city,
-                date: event.date_from,
+                date: eventDate,
                 event_url: result.url,
                 platform: platformName
               });
 
               if (notificationResult.success) {
-                logger.log(logger.NOTIFY, `Telegram sent: ${event.artist} - ${city} - ${event.date_from}`);
+                logger.log(logger.NOTIFY, `Telegram sent: ${event.artist} - ${city} - ${eventDate}`);
                 stateMgr.addNotification({
                   artist: event.artist,
                   city: city,
-                  date: event.date_from,
+                  date: eventDate,
                   platform: platformName,
                   event_url: result.url
                 });

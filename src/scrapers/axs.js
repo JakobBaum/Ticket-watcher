@@ -33,13 +33,13 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
     }
 
     const cities = normalizeCity(city);
-    const structuredResult = checkStructuredData(html, cities);
+    const structuredResult = checkStructuredData(html, cities, dateFrom, dateTo);
 
     console.log(`[AXS DEBUG] cities=${JSON.stringify(cities)} structuredResult=${JSON.stringify(structuredResult)}`);
 
     if (structuredResult !== undefined) {
-      const found = typeof structuredResult === 'string';
-      return { success: true, found, url: found ? structuredResult : null, platform: 'axs' };
+      const found = structuredResult !== null;
+      return { success: true, found, url: structuredResult?.url || null, date: structuredResult?.date || null, platform: 'axs' };
     }
 
     const hasNegative = pageContent.includes('no results') || pageContent.includes('no events');

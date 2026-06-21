@@ -31,13 +31,13 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
     }
 
     const cities = normalizeCity(city);
-    const structuredResult = checkStructuredData(html, cities);
+    const structuredResult = checkStructuredData(html, cities, dateFrom, dateTo);
 
     console.log(`[TM DEBUG] cities=${JSON.stringify(cities)} structuredResult=${JSON.stringify(structuredResult)}`);
 
     if (structuredResult !== undefined) {
-      const found = typeof structuredResult === 'string';
-      return { success: true, found, url: found ? structuredResult : null, platform: 'ticketmaster' };
+      const found = structuredResult !== null;
+      return { success: true, found, url: structuredResult?.url || null, date: structuredResult?.date || null, platform: 'ticketmaster' };
     }
 
     // Fall back to text heuristics.
