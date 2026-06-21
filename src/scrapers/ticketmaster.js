@@ -24,12 +24,16 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
        pageContent.includes('access denied') ||
        (pageContent.includes('captcha') && pageContent.includes('robot')));
 
+    console.log(`[TM DEBUG] url=${fetchUrl} html_len=${html.length} challenge=${isChallengePage}`);
+
     if (isChallengePage) {
       return { success: true, found: false, platform: 'ticketmaster' };
     }
 
     const cities = normalizeCity(city);
     const structuredResult = checkStructuredData(html, cities);
+
+    console.log(`[TM DEBUG] cities=${JSON.stringify(cities)} structuredResult=${JSON.stringify(structuredResult)}`);
 
     if (structuredResult !== undefined) {
       const found = typeof structuredResult === 'string';
@@ -44,6 +48,7 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
     const hasNegative = !hasPositive &&
       (pageContent.includes('no events found') || pageContent.includes('no results found'));
     const found = hasPositive && !hasNegative;
+    console.log(`[TM DEBUG] heuristic: hasPositive=${hasPositive} hasNegative=${hasNegative} found=${found}`);
 
     let eventUrl = null;
     if (found) {

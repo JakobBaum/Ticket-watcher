@@ -26,12 +26,16 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
        pageContent.includes('access denied') ||
        (pageContent.includes('captcha') && pageContent.includes('robot')));
 
+    console.log(`[AXS DEBUG] url=${fetchUrl} html_len=${html.length} challenge=${isChallengePage}`);
+
     if (isChallengePage) {
       return { success: true, found: false, platform: 'axs' };
     }
 
     const cities = normalizeCity(city);
     const structuredResult = checkStructuredData(html, cities);
+
+    console.log(`[AXS DEBUG] cities=${JSON.stringify(cities)} structuredResult=${JSON.stringify(structuredResult)}`);
 
     if (structuredResult !== undefined) {
       const found = typeof structuredResult === 'string';
@@ -43,6 +47,7 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
                         pageContent.includes('tickets from') ||
                         pageContent.includes('get tickets');
     const found = !hasNegative && hasPositive;
+    console.log(`[AXS DEBUG] heuristic: hasPositive=${hasPositive} hasNegative=${hasNegative} found=${found}`);
 
     let eventUrl = null;
     if (found) {
