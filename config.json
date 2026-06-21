@@ -2,11 +2,21 @@
   "watched_events": [
     {
       "artist": "Helene Fischer",
-      "url": "https://www.ticketmaster.com/helene-fischer-tickets/artist/1652327",
       "cities": ["Vienna"],
       "date_from": "2026-01-01",
       "date_to": "2027-12-31",
-      "platforms": ["ticketmaster"]
+      "platforms": [
+        { "name": "ticketmaster", "url": "https://www.ticketmaster.com/helene-fischer-tickets/artist/1652327" }
+      ]
+    },
+    {
+      "artist": "Electric Forest",
+      "cities": ["Rothbury"],
+      "date_from": "2026-01-01",
+      "date_to": "2026-12-31",
+      "platforms": [
+        { "name": "axs", "url": "https://www.axs.com/events/1158551/electric-forest-2026-tickets" }
+      ]
     }
   ]
 }

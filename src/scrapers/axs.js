@@ -1,45 +1,7 @@
 const axios = require('axios');
+const { normalizeCity, isUrl, checkStructuredData } = require('./scraper-utils');
 
 const AXS_SEARCH_URL = 'https://www.axs.com/events';
-
-const CITY_ALIASES = {
-  'vienna': 'wien',
-  'wien': 'vienna',
-};
-
-function normalizeCity(city) {
-  const lower = city.toLowerCase();
-  return [lower, CITY_ALIASES[lower]].filter(Boolean);
-}
-
-function isUrl(str) {
-  return str.startsWith('http://') || str.startsWith('https://');
-}
-
-function checkStructuredData(html, cities) {
-  const ldMatches = html.match(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi) || [];
-  for (const block of ldMatches) {
-    const json = block.replace(/<script[^>]*>|<\/script>/gi, '').trim();
-    try {
-      const data = JSON.parse(json);
-      const events = Array.isArray(data) ? data : [data];
-      for (const event of events) {
-        if (event['@type'] !== 'MusicEvent' && event['@type'] !== 'Event') continue;
-        const location = (event.location?.address?.addressLocality || '').toLowerCase();
-        const cityMatch = cities.some(c => location.includes(c));
-        if (!cityMatch) continue;
-        const offers = Array.isArray(event.offers) ? event.offers : (event.offers ? [event.offers] : []);
-        const available = offers.some(o =>
-          o.availability && o.availability.toLowerCase().includes('instock')
-        );
-        if (available) {
-          return event.url || null;
-        }
-      }
-    } catch (_) {}
-  }
-  return undefined;
-}
 
 async function scrapeAXS(artist, city, dateFrom, dateTo) {
   try {
@@ -50,27 +12,29 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
     const response = await axios.get(fetchUrl, {
       timeout: 10000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9'
       }
     });
 
     const html = response.data;
     const pageContent = html.toLowerCase();
 
-    const isBlocked = pageContent.includes('captcha') ||
-                      pageContent.includes('robot') ||
-                      pageContent.includes('cf-challenge') ||
-                      pageContent.includes('access denied');
+    const isChallengePage = html.length < 50000 &&
+      (pageContent.includes('cf-challenge') ||
+       pageContent.includes('access denied') ||
+       (pageContent.includes('captcha') && pageContent.includes('robot')));
 
-    if (isBlocked) {
+    if (isChallengePage) {
       return { success: true, found: false, platform: 'axs' };
     }
 
     const cities = normalizeCity(city);
-
     const structuredResult = checkStructuredData(html, cities);
+
     if (structuredResult !== undefined) {
-      const found = structuredResult !== null;
+      const found = typeof structuredResult === 'string';
       return { success: true, found, url: found ? structuredResult : null, platform: 'axs' };
     }
 

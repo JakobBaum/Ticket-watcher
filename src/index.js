@@ -13,7 +13,6 @@ async function runCheckCycle() {
   try {
     logger.log(logger.START, 'Check started');
 
-    // Load and validate config (includes env var checks)
     let config;
     try {
       config = configMgr.getConfig();
@@ -27,28 +26,31 @@ async function runCheckCycle() {
       return process.exit(1);
     }
 
-    // Check each watched event — scrape each city independently
     for (const event of config.watched_events) {
-      for (const platform of event.platforms) {
+      for (const platformEntry of event.platforms) {
+        // Support both string ("ticketmaster") and object ({ name, url }) formats
+        const platformName = typeof platformEntry === 'object' ? platformEntry.name : platformEntry;
+        const platformUrl = typeof platformEntry === 'object' ? platformEntry.url : null;
+        const scrapeTarget = platformUrl || event.artist;
+
         for (const city of event.cities) {
           try {
             let result;
 
-            if (platform === 'ticketmaster') {
-              result = await scrapeTicketmaster(event.url || event.artist, city, event.date_from, event.date_to);
-            } else if (platform === 'axs') {
-              result = await scrapeAXS(event.url || event.artist, city, event.date_from, event.date_to);
+            if (platformName === 'ticketmaster') {
+              result = await scrapeTicketmaster(scrapeTarget, city, event.date_from, event.date_to);
+            } else if (platformName === 'axs') {
+              result = await scrapeAXS(scrapeTarget, city, event.date_from, event.date_to);
             } else {
-              logger.log(logger.WARN, `Unknown platform: ${platform}`);
+              logger.log(logger.WARN, `Unknown platform: ${platformName}`);
               continue;
             }
 
-            logger.log(logger.CHECK, `${platform.charAt(0).toUpperCase() + platform.slice(1)}: ${event.artist} (${city}, ${event.date_from}) - Found: ${result.found}`);
+            logger.log(logger.CHECK, `${platformName.charAt(0).toUpperCase() + platformName.slice(1)}: ${event.artist} (${city}, ${event.date_from}) - Found: ${result.found}`);
 
             if (result.found && result.url) {
-              // Skip if already notified for this artist/city/date/platform
-              if (stateMgr.hasNotification({ artist: event.artist, city, date: event.date_from, platform })) {
-                logger.log(logger.CHECK, `Already notified: ${event.artist} - ${city} - ${platform}`);
+              if (stateMgr.hasNotification({ artist: event.artist, city, date: event.date_from, platform: platformName })) {
+                logger.log(logger.CHECK, `Already notified: ${event.artist} - ${city} - ${platformName}`);
                 continue;
               }
 
@@ -57,7 +59,7 @@ async function runCheckCycle() {
                 city: city,
                 date: event.date_from,
                 event_url: result.url,
-                platform: platform
+                platform: platformName
               });
 
               if (notificationResult.success) {
@@ -66,7 +68,7 @@ async function runCheckCycle() {
                   artist: event.artist,
                   city: city,
                   date: event.date_from,
-                  platform: platform,
+                  platform: platformName,
                   event_url: result.url
                 });
                 notificationCount++;
@@ -80,10 +82,7 @@ async function runCheckCycle() {
                    notificationResult.error.includes('TELEGRAM_CHAT_ID'));
 
                 logger.log(logger.ERROR, `Failed to send notification: ${notificationResult.error}`);
-                stateMgr.addError({
-                  message: notificationResult.error,
-                  platform: platform
-                });
+                stateMgr.addError({ message: notificationResult.error, platform: platformName });
 
                 if (isFatalTelegramError) {
                   logger.log(logger.ERROR, `Fatal Telegram error - exiting with code 1`);
@@ -94,21 +93,15 @@ async function runCheckCycle() {
               }
             }
           } catch (error) {
-            logger.log(logger.ERROR, `Error checking ${platform} / ${city}: ${error.message}`);
-            stateMgr.addError({
-              message: error.message,
-              platform: platform
-            });
+            logger.log(logger.ERROR, `Error checking ${platformName} / ${city}: ${error.message}`);
+            stateMgr.addError({ message: error.message, platform: platformName });
             errorCount++;
           }
         }
       }
     }
 
-    // Update last check timestamp
     stateMgr.updateLastCheck();
-
-    // Final summary
     logger.log(logger.END, `Check completed | Notified: ${notificationCount} | Errors: ${errorCount} | Exit: 0`);
     process.exit(0);
   } catch (error) {
