@@ -1,11 +1,22 @@
 {
   "watched_events": [
     {
-      "artist": "Ariana Grande",
+      "artist": "shinedown",
+      "cities": ["Las Vegas"],
+      "date_from": "2026-01-01",
+      "date_to": "2027-12-31",
+      "platforms": [
+        { "name": "ticketmaster", "url": "https://www.ticketmaster.com/shinedown-tickets/artist/8804977" }
+      ]
+    },
+    {
+      "artist": "Ice Nine Kills",
       "cities": ["London"],
-      "date_from": "2026-08-16",
-      "date_to": "2026-09-01",
-      "platforms": ["ticketmaster", "axs"]
+      "date_from": "2026-01-01",
+      "date_to": "2026-12-31",
+      "platforms": [
+        { "name": "axs", "url": "https://www.axs.com/de/events/1483248/ice-nine-kills-tickets" }
+      ]
     }
   ]
 }

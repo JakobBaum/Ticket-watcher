@@ -42,12 +42,14 @@ function validateConfig(config) {
       }
       if (!Array.isArray(event.platforms) || event.platforms.length === 0) {
         errors.push(`Event ${idx}: "platforms" must be non-empty array`);
+      } else {
+        event.platforms.forEach((platform, pIdx) => {
+          const name = typeof platform === 'object' ? platform.name : platform;
+          if (!['ticketmaster', 'axs'].includes(name)) {
+            errors.push(`Event ${idx} platform ${pIdx}: invalid name "${name}" (must be ticketmaster or axs)`);
+          }
+        });
       }
-      event.platforms.forEach(platform => {
-        if (!['ticketmaster', 'axs'].includes(platform)) {
-          errors.push(`Event ${idx}: invalid platform "${platform}" (must be ticketmaster or axs)`);
-        }
-      });
     });
   }
 
