@@ -1,4 +1,3 @@
-require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -21,7 +20,7 @@ function initBot() {
 }
 
 function formatDate(dateStr) {
-  // Convert YYYY-MM-DD to DD.MM.YYYY
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr || 'Unknown date';
   const [year, month, day] = dateStr.split('-');
   return `${day}.${month}.${year}`;
 }

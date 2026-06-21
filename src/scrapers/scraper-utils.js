@@ -1,7 +1,13 @@
+const logger = require('../utils/logger');
+
 const CITY_ALIASES = {
   'vienna': 'wien',
   'wien': 'vienna',
 };
+
+const CHALLENGE_PAGE_MAX_BYTES = 50000;
+
+const ALLOWED_HOSTS = ['www.ticketmaster.com', 'www.axs.com'];
 
 function normalizeCity(city) {
   const lower = city.toLowerCase();
@@ -10,6 +16,16 @@ function normalizeCity(city) {
 
 function isUrl(str) {
   return str.startsWith('http://') || str.startsWith('https://');
+}
+
+/** Validates that a URL is https and targets an allowed host — prevents SSRF via config. */
+function isSafeUrl(str) {
+  try {
+    const { protocol, hostname } = new URL(str);
+    return protocol === 'https:' && ALLOWED_HOSTS.includes(hostname);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -46,11 +62,11 @@ function checkStructuredData(html, cities, dateFrom, dateTo) {
     let data;
     try {
       data = JSON.parse(json);
-    } catch (_) {
+    } catch (err) {
+      logger.log(logger.WARN, `Failed to parse ld+json block: ${err.message}`);
       continue;
     }
 
-    // Unwrap @graph arrays, then normalise to a flat list
     const raw = Array.isArray(data) ? data : [data];
     const items = raw.flatMap(d => (d['@graph'] ? d['@graph'] : [d]));
 
@@ -85,4 +101,4 @@ function checkStructuredData(html, cities, dateFrom, dateTo) {
   return foundCityMatch ? null : undefined;
 }
 
-module.exports = { normalizeCity, isUrl, checkStructuredData };
+module.exports = { normalizeCity, isUrl, isSafeUrl, checkStructuredData, CHALLENGE_PAGE_MAX_BYTES };

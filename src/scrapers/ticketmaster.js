@@ -1,5 +1,6 @@
 const axios = require('axios');
-const { normalizeCity, isUrl, checkStructuredData } = require('./scraper-utils');
+const { normalizeCity, isUrl, isSafeUrl, checkStructuredData, CHALLENGE_PAGE_MAX_BYTES } = require('./scraper-utils');
+const logger = require('../utils/logger');
 
 const TICKETMASTER_SEARCH_URL = 'https://www.ticketmaster.com/search';
 
@@ -8,6 +9,10 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
     const fetchUrl = isUrl(artist)
       ? artist
       : `${TICKETMASTER_SEARCH_URL}?keyword=${encodeURIComponent(artist)}&city=${encodeURIComponent(city)}`;
+
+    if (isUrl(artist) && !isSafeUrl(artist)) {
+      return { success: false, found: false, error: `Unsafe or non-HTTPS URL rejected: ${artist}`, platform: 'ticketmaster' };
+    }
 
     const response = await axios.get(fetchUrl, {
       timeout: 10000,
@@ -21,12 +26,13 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
     const html = response.data;
     const pageContent = html.toLowerCase();
 
-    const isChallengePage = html.length < 50000 &&
+    const isChallengePage = html.length < CHALLENGE_PAGE_MAX_BYTES &&
       (pageContent.includes('cf-challenge') ||
        pageContent.includes('access denied') ||
        (pageContent.includes('captcha') && pageContent.includes('robot')));
 
     if (isChallengePage) {
+      logger.log(logger.WARN, `Ticketmaster challenge/captcha page detected for ${fetchUrl} — scraper may be blocked`);
       return { success: true, found: false, platform: 'ticketmaster' };
     }
 
@@ -35,20 +41,14 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
 
     if (structuredResult !== undefined) {
       const found = structuredResult !== null;
-      // Fall back to fetchUrl when ld+json event omits its own URL field
       const url = structuredResult?.url || (found ? fetchUrl : null);
       return { success: true, found, url, date: structuredResult?.date || null, platform: 'ticketmaster' };
     }
 
-    // Heuristic fallback — only used when scraping the generic search page (no direct artist URL).
-    // When a direct artist URL was given but yielded no city-matched structured data, the artist
-    // has no events in that city — return false rather than firing on nav text.
     if (isUrl(artist)) {
       return { success: true, found: false, platform: 'ticketmaster' };
     }
 
-    // On the generic search page, "buy tickets" appears in the site nav regardless of results,
-    // so we require its presence alongside the absence of an explicit no-results signal.
     const hasPositive = pageContent.includes('buy tickets') ||
                         pageContent.includes('tickets from') ||
                         pageContent.includes('get tickets');

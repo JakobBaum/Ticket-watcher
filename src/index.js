@@ -4,7 +4,25 @@ const configMgr = require('./managers/config-manager.js');
 const stateMgr = require('./managers/state-manager.js');
 const telegramNotifier = require('./notifier/telegram.js');
 const { scrapeTicketmaster } = require('./scrapers/ticketmaster.js');
-const { scrapeAXS } = require('./scrapers/axs.js');
+const { scrapeAXS, closeBrowser } = require('./scrapers/axs.js');
+
+async function scrapeOne(event, platformEntry, city) {
+  const platformName = typeof platformEntry === 'object' ? platformEntry.name : platformEntry;
+  const platformUrl = typeof platformEntry === 'object' ? platformEntry.url : null;
+  const scrapeTarget = platformUrl || event.artist;
+
+  let result;
+  if (platformName === 'ticketmaster') {
+    result = await scrapeTicketmaster(scrapeTarget, city, event.date_from, event.date_to);
+  } else if (platformName === 'axs') {
+    result = await scrapeAXS(scrapeTarget, city, event.date_from, event.date_to);
+  } else {
+    logger.log(logger.WARN, `Unknown platform: ${platformName}`);
+    return null;
+  }
+
+  return { event, platformName, city, result };
+}
 
 async function runCheckCycle() {
   let notificationCount = 0;
@@ -26,78 +44,85 @@ async function runCheckCycle() {
       return process.exit(1);
     }
 
+    // Build all scrape tasks and run them in parallel
+    const tasks = [];
     for (const event of config.watched_events) {
       for (const platformEntry of event.platforms) {
-        // Support both string ("ticketmaster") and object ({ name, url }) formats
-        const platformName = typeof platformEntry === 'object' ? platformEntry.name : platformEntry;
-        const platformUrl = typeof platformEntry === 'object' ? platformEntry.url : null;
-        const scrapeTarget = platformUrl || event.artist;
-
         for (const city of event.cities) {
-          try {
-            let result;
+          tasks.push({ event, platformEntry, city });
+        }
+      }
+    }
 
-            if (platformName === 'ticketmaster') {
-              result = await scrapeTicketmaster(scrapeTarget, city, event.date_from, event.date_to);
-            } else if (platformName === 'axs') {
-              result = await scrapeAXS(scrapeTarget, city, event.date_from, event.date_to);
-            } else {
-              logger.log(logger.WARN, `Unknown platform: ${platformName}`);
-              continue;
-            }
+    const settled = await Promise.allSettled(
+      tasks.map(({ event, platformEntry, city }) => scrapeOne(event, platformEntry, city))
+    );
 
-            const eventDate = result.date || event.date_from;
-            logger.log(logger.CHECK, `${platformName.charAt(0).toUpperCase() + platformName.slice(1)}: ${event.artist} (${city}, ${eventDate}) - Found: ${result.found}`);
+    // Process results sequentially so state writes don't race
+    for (const outcome of settled) {
+      if (outcome.status === 'rejected') {
+        logger.log(logger.ERROR, `Scrape task threw unexpectedly: ${outcome.reason?.message}`);
+        errorCount++;
+        continue;
+      }
 
-            if (result.found && result.url) {
-              if (stateMgr.hasNotification({ artist: event.artist, city, date: eventDate, platform: platformName })) {
-                logger.log(logger.CHECK, `Already notified: ${event.artist} - ${city} - ${platformName}`);
-                continue;
-              }
+      const data = outcome.value;
+      if (!data) continue;
 
-              const notificationResult = await telegramNotifier.sendNotification({
-                artist: event.artist,
-                city: city,
-                date: eventDate,
-                event_url: result.url,
-                platform: platformName
-              });
+      const { event, platformName, city, result } = data;
 
-              if (notificationResult.success) {
-                logger.log(logger.NOTIFY, `Telegram sent: ${event.artist} - ${city} - ${eventDate}`);
-                stateMgr.addNotification({
-                  artist: event.artist,
-                  city: city,
-                  date: eventDate,
-                  platform: platformName,
-                  event_url: result.url
-                });
-                notificationCount++;
-              } else {
-                const isFatalTelegramError = notificationResult.error &&
-                  (notificationResult.error.includes('401') ||
-                   notificationResult.error.includes('404') ||
-                   notificationResult.error.includes('not found') ||
-                   notificationResult.error.includes('Unauthorized') ||
-                   notificationResult.error.includes('TELEGRAM_BOT_TOKEN') ||
-                   notificationResult.error.includes('TELEGRAM_CHAT_ID'));
+      if (!result.success) {
+        logger.log(logger.ERROR, `Scraper failed for ${platformName} / ${city}: ${result.error}`);
+        stateMgr.addError({ message: result.error, platform: platformName });
+        errorCount++;
+        continue;
+      }
 
-                logger.log(logger.ERROR, `Failed to send notification: ${notificationResult.error}`);
-                stateMgr.addError({ message: notificationResult.error, platform: platformName });
+      const eventDate = result.date || event.date_from;
+      logger.log(logger.CHECK, `${platformName.charAt(0).toUpperCase() + platformName.slice(1)}: ${event.artist} (${city}, ${eventDate}) - Found: ${result.found}`);
 
-                if (isFatalTelegramError) {
-                  logger.log(logger.ERROR, `Fatal Telegram error - exiting with code 1`);
-                  return process.exit(1);
-                }
+      if (result.found && result.url) {
+        if (stateMgr.hasNotification({ artist: event.artist, city, date: eventDate, platform: platformName })) {
+          logger.log(logger.CHECK, `Already notified: ${event.artist} - ${city} - ${platformName}`);
+          continue;
+        }
 
-                errorCount++;
-              }
-            }
-          } catch (error) {
-            logger.log(logger.ERROR, `Error checking ${platformName} / ${city}: ${error.message}`);
-            stateMgr.addError({ message: error.message, platform: platformName });
-            errorCount++;
+        const notificationResult = await telegramNotifier.sendNotification({
+          artist: event.artist,
+          city,
+          date: eventDate,
+          event_url: result.url,
+          platform: platformName
+        });
+
+        if (notificationResult.success) {
+          logger.log(logger.NOTIFY, `Telegram sent: ${event.artist} - ${city} - ${eventDate}`);
+          stateMgr.addNotification({
+            artist: event.artist,
+            city,
+            date: eventDate,
+            platform: platformName,
+            event_url: result.url
+          });
+          notificationCount++;
+        } else {
+          const isFatalTelegramError = notificationResult.error &&
+            (notificationResult.error.includes('401') ||
+             notificationResult.error.includes('404') ||
+             notificationResult.error.includes('not found') ||
+             notificationResult.error.includes('Unauthorized') ||
+             notificationResult.error.includes('TELEGRAM_BOT_TOKEN') ||
+             notificationResult.error.includes('TELEGRAM_CHAT_ID'));
+
+          logger.log(logger.ERROR, `Failed to send notification: ${notificationResult.error}`);
+          stateMgr.addError({ message: notificationResult.error, platform: platformName });
+
+          if (isFatalTelegramError) {
+            logger.log(logger.ERROR, 'Fatal Telegram error - exiting with code 1');
+            return process.exit(1);
           }
+
+          errorCount++;
         }
       }
     }
@@ -106,8 +131,10 @@ async function runCheckCycle() {
     logger.log(logger.END, `Check completed | Notified: ${notificationCount} | Errors: ${errorCount} | Exit: 0`);
     process.exit(0);
   } catch (error) {
-    logger.log(logger.ERROR, `Fatal error: ${error.message}`);
+    logger.log(logger.ERROR, `Fatal error: ${error.message}\n${error.stack}`);
     process.exit(1);
+  } finally {
+    await closeBrowser().catch(() => {});
   }
 }
 

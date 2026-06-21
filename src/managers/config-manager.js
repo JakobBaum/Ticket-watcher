@@ -8,8 +8,12 @@ function getConfig() {
     throw new Error(`Config file not found: ${CONFIG_FILE}`);
   }
 
-  const rawData = fs.readFileSync(CONFIG_FILE, 'utf8');
-  return JSON.parse(rawData);
+  try {
+    const rawData = fs.readFileSync(CONFIG_FILE, 'utf8');
+    return JSON.parse(rawData);
+  } catch (err) {
+    throw new Error(`Failed to parse config file at ${CONFIG_FILE}: ${err.message}`);
+  }
 }
 
 function validateConfig(config) {
