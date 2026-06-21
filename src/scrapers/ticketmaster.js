@@ -12,7 +12,9 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
     const response = await axios.get(fetchUrl, {
       timeout: 10000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9'
       }
     });
 
@@ -24,8 +26,6 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
        pageContent.includes('access denied') ||
        (pageContent.includes('captcha') && pageContent.includes('robot')));
 
-    console.log(`[TM DEBUG] url=${fetchUrl} html_len=${html.length} challenge=${isChallengePage}`);
-
     if (isChallengePage) {
       return { success: true, found: false, platform: 'ticketmaster' };
     }
@@ -33,27 +33,32 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
     const cities = normalizeCity(city);
     const structuredResult = checkStructuredData(html, cities, dateFrom, dateTo);
 
-    console.log(`[TM DEBUG] cities=${JSON.stringify(cities)} structuredResult=${JSON.stringify(structuredResult)}`);
-
     if (structuredResult !== undefined) {
       const found = structuredResult !== null;
-      return { success: true, found, url: structuredResult?.url || null, date: structuredResult?.date || null, platform: 'ticketmaster' };
+      // Fall back to fetchUrl when ld+json event omits its own URL field
+      const url = structuredResult?.url || (found ? fetchUrl : null);
+      return { success: true, found, url, date: structuredResult?.date || null, platform: 'ticketmaster' };
     }
 
-    // Fall back to text heuristics.
-    // Positive signals win — "no results" often appears in JS i18n bundles even on pages that have tickets.
+    // Heuristic fallback — only used when scraping the generic search page (no direct artist URL).
+    // When a direct artist URL was given but yielded no city-matched structured data, the artist
+    // has no events in that city — return false rather than firing on nav text.
+    if (isUrl(artist)) {
+      return { success: true, found: false, platform: 'ticketmaster' };
+    }
+
+    // On the generic search page, "buy tickets" appears in the site nav regardless of results,
+    // so we require its presence alongside the absence of an explicit no-results signal.
     const hasPositive = pageContent.includes('buy tickets') ||
                         pageContent.includes('tickets from') ||
                         pageContent.includes('get tickets');
-    const hasNegative = !hasPositive &&
-      (pageContent.includes('no events found') || pageContent.includes('no results found'));
+    const hasNegative = pageContent.includes('no events found') || pageContent.includes('no results found');
     const found = hasPositive && !hasNegative;
-    console.log(`[TM DEBUG] heuristic: hasPositive=${hasPositive} hasNegative=${hasNegative} found=${found}`);
 
     let eventUrl = null;
     if (found) {
-      const urlMatch = html.match(/href="(https:\/\/www\.ticketmaster\.com\/[^"]+)"/);
-      eventUrl = urlMatch ? urlMatch[1] : fetchUrl;
+      const urlMatch = html.match(/href="(https:\/\/www\.ticketmaster\.com\/event\/[^"]+)"/);
+      eventUrl = urlMatch ? urlMatch[1] : null;
     }
 
     return { success: true, found, url: eventUrl, platform: 'ticketmaster' };

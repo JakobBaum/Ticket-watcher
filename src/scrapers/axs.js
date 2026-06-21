@@ -26,8 +26,6 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
        pageContent.includes('access denied') ||
        (pageContent.includes('captcha') && pageContent.includes('robot')));
 
-    console.log(`[AXS DEBUG] url=${fetchUrl} html_len=${html.length} challenge=${isChallengePage}`);
-
     if (isChallengePage) {
       return { success: true, found: false, platform: 'axs' };
     }
@@ -35,19 +33,22 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
     const cities = normalizeCity(city);
     const structuredResult = checkStructuredData(html, cities, dateFrom, dateTo);
 
-    console.log(`[AXS DEBUG] cities=${JSON.stringify(cities)} structuredResult=${JSON.stringify(structuredResult)}`);
-
     if (structuredResult !== undefined) {
       const found = structuredResult !== null;
-      return { success: true, found, url: structuredResult?.url || null, date: structuredResult?.date || null, platform: 'axs' };
+      const url = structuredResult?.url || (found ? fetchUrl : null);
+      return { success: true, found, url, date: structuredResult?.date || null, platform: 'axs' };
+    }
+
+    // Heuristic fallback — skip when a direct event URL was configured.
+    if (isUrl(artist)) {
+      return { success: true, found: false, platform: 'axs' };
     }
 
     const hasNegative = pageContent.includes('no results') || pageContent.includes('no events');
     const hasPositive = pageContent.includes('buy tickets') ||
                         pageContent.includes('tickets from') ||
                         pageContent.includes('get tickets');
-    const found = !hasNegative && hasPositive;
-    console.log(`[AXS DEBUG] heuristic: hasPositive=${hasPositive} hasNegative=${hasNegative} found=${found}`);
+    const found = hasPositive && !hasNegative;
 
     let eventUrl = null;
     if (found) {

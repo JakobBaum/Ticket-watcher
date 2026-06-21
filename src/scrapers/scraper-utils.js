@@ -13,6 +13,24 @@ function isUrl(str) {
 }
 
 /**
+ * Extract a city string from an event's location field.
+ * Handles: location.address.addressLocality, location.address.addressRegion,
+ * location.name (venue name may include city), and location.address as a plain string.
+ */
+function extractLocationText(event) {
+  const loc = event.location;
+  if (!loc) return '';
+  const parts = [];
+  if (typeof loc.address === 'object' && loc.address) {
+    if (loc.address.addressLocality) parts.push(loc.address.addressLocality);
+    if (loc.address.addressRegion)   parts.push(loc.address.addressRegion);
+  }
+  if (typeof loc.address === 'string') parts.push(loc.address);
+  if (loc.name) parts.push(loc.name);
+  return parts.join(' ').toLowerCase();
+}
+
+/**
  * Parse ld+json blocks and check event availability for the given cities and date range.
  * Returns:
  *   { url, date } — InStock event matching city and date range found
@@ -25,33 +43,43 @@ function checkStructuredData(html, cities, dateFrom, dateTo) {
 
   for (const block of ldMatches) {
     const json = block.replace(/<script[^>]*>|<\/script>/gi, '').trim();
+    let data;
     try {
-      const data = JSON.parse(json);
-      const events = Array.isArray(data) ? data : [data];
-      for (const event of events) {
-        if (event['@type'] !== 'MusicEvent' && event['@type'] !== 'Event') continue;
-        const location = (event.location?.address?.addressLocality || '').toLowerCase();
-        if (!cities.some(c => location.includes(c))) continue;
+      data = JSON.parse(json);
+    } catch (_) {
+      continue;
+    }
 
-        if (dateFrom || dateTo) {
-          const startDate = event.startDate ? new Date(event.startDate) : null;
-          if (startDate) {
-            if (dateFrom && startDate < new Date(dateFrom)) continue;
-            if (dateTo && startDate > new Date(dateTo)) continue;
-          }
-        }
+    // Unwrap @graph arrays, then normalise to a flat list
+    const raw = Array.isArray(data) ? data : [data];
+    const items = raw.flatMap(d => (d['@graph'] ? d['@graph'] : [d]));
 
-        foundCityMatch = true;
-        const offers = Array.isArray(event.offers) ? event.offers : (event.offers ? [event.offers] : []);
-        const available = offers.some(o =>
-          o.availability && o.availability.toLowerCase().includes('instock')
-        );
-        if (available) {
-          const date = event.startDate ? event.startDate.split('T')[0] : null;
-          return { url: event.url || null, date };
+    for (const event of items) {
+      if (event['@type'] !== 'MusicEvent' && event['@type'] !== 'Event') continue;
+
+      const locationText = extractLocationText(event);
+      if (!cities.some(c => locationText.includes(c))) continue;
+
+      if (dateFrom || dateTo) {
+        const startDate = event.startDate ? new Date(event.startDate + (event.startDate.includes('T') ? '' : 'T00:00:00')) : null;
+        const from      = dateFrom ? new Date(dateFrom + 'T00:00:00') : null;
+        const to        = dateTo   ? new Date(dateTo   + 'T23:59:59') : null;
+        if (startDate) {
+          if (from && startDate < from) continue;
+          if (to   && startDate > to)   continue;
         }
       }
-    } catch (_) {}
+
+      foundCityMatch = true;
+      const offers = Array.isArray(event.offers) ? event.offers : (event.offers ? [event.offers] : []);
+      const available = offers.some(o =>
+        o.availability && o.availability.toLowerCase().includes('instock')
+      );
+      if (available) {
+        const date = event.startDate ? event.startDate.split('T')[0] : null;
+        return { url: event.url || null, date };
+      }
+    }
   }
 
   return foundCityMatch ? null : undefined;
