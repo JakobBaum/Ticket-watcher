@@ -62,10 +62,6 @@ describe('findAvailableEvent (pure parser)', () => {
     expect(findAvailableEvent([tmEvent({ status: '' })], VEGAS, FROM, TO)).toBeNull();
   });
 
-  test('returns null when onsale but no priceRanges (sold out / resale-only)', () => {
-    expect(findAvailableEvent([tmEvent({ hasPriceRanges: false })], VEGAS, FROM, TO)).toBeNull();
-  });
-
   test('returns match for presale event', () => {
     const result = findAvailableEvent([tmEvent({ status: 'presale' })], VEGAS, FROM, TO);
     expect(result).not.toBeNull();

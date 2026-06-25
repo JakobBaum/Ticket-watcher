@@ -65,10 +65,6 @@ function findAvailableEvent(events, cities, dateFrom, dateTo) {
     const statusCode = (event?.dates?.status?.code || '').toLowerCase();
     if (!AVAILABLE_STATUS_CODES.includes(statusCode)) continue;
 
-    // priceRanges is only present when Ticketmaster has purchasable inventory.
-    // An onsale event without priceRanges is sold out (primary) or resale-only.
-    if (!Array.isArray(event.priceRanges) || event.priceRanges.length === 0) continue;
-
     if (cities.length > 0) {
       const cityText = eventCityText(event);
       if (!cities.some(c => cityText.includes(c))) continue;
