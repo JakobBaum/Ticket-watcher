@@ -7,8 +7,6 @@ const CITY_ALIASES = {
   'paradise': 'las vegas',
 };
 
-const CHALLENGE_PAGE_MAX_BYTES = 50000;
-
 const ALLOWED_HOSTS = ['www.ticketmaster.com', 'www.axs.com'];
 
 function normalizeCity(city) {
@@ -107,4 +105,4 @@ function checkStructuredData(html, cities, dateFrom, dateTo) {
   return foundCityMatch ? null : undefined;
 }
 
-module.exports = { normalizeCity, isUrl, isSafeUrl, checkStructuredData, CHALLENGE_PAGE_MAX_BYTES };
+module.exports = { normalizeCity, isUrl, isSafeUrl, checkStructuredData };
