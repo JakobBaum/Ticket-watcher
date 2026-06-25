@@ -1,9 +1,9 @@
 name: Ticket Scanner
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
+  repository_dispatch:
+    types: [cron_ticket_scan]  # Diesen Event-Namen trägst du bei cron-job.org ein
+  workflow_dispatch:          # Erlaubt weiterhin manuelles Starten via GitHub UI
 
 jobs:
   scan:
