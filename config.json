@@ -1,16 +1,16 @@
 {
   "watched_events": [
     {
-      "artist": "shinedown",
+      "artist": "ariana grande",
       "cities": [
-        "Las Vegas"
+        "London"
       ],
       "date_from": "2026-01-01",
       "date_to": "2027-12-31",
       "platforms": [
         {
           "name": "ticketmaster",
-          "url": "https://www.ticketmaster.com/shinedown-tickets/artist/880497"
+          "url": "https://www.ticketmaster.com/ariana-grande-tickets/artist/1688071"
         }
       ]
     },
