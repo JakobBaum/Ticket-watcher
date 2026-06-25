@@ -83,11 +83,6 @@ async function runCheckCycle() {
       logger.log(logger.CHECK, `${platformName.charAt(0).toUpperCase() + platformName.slice(1)}: ${event.artist} (${city}, ${eventDate}) - Found: ${result.found}`);
 
       if (result.found && result.url) {
-        if (stateMgr.hasNotification({ artist: event.artist, city, date: eventDate, platform: platformName })) {
-          logger.log(logger.CHECK, `Already notified: ${event.artist} - ${city} - ${platformName}`);
-          continue;
-        }
-
         const notificationResult = await telegramNotifier.sendNotification({
           artist: event.artist,
           city,
@@ -98,13 +93,6 @@ async function runCheckCycle() {
 
         if (notificationResult.success) {
           logger.log(logger.NOTIFY, `Telegram sent: ${event.artist} - ${city} - ${eventDate}`);
-          stateMgr.addNotification({
-            artist: event.artist,
-            city,
-            date: eventDate,
-            platform: platformName,
-            event_url: result.url
-          });
           notificationCount++;
         } else {
           const isFatalTelegramError = notificationResult.error &&

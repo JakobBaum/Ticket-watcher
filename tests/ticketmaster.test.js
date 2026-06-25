@@ -51,9 +51,18 @@ describe('findAvailableEvent (pure parser)', () => {
   });
 
   test('picks the first matching on-sale event among several', () => {
-    const events = [tmEvent({ status: 'offsale' }), tmEvent({ date: '2026-09-09', url: 'https://www.ticketmaster.com/event/SECOND' })];
+    const events = [tmEvent({ status: 'offsale' }), tmEvent({ status: 'onsale', date: '2026-09-09', url: 'https://www.ticketmaster.com/event/SECOND' })];
     const result = findAvailableEvent(events, VEGAS, FROM, TO);
     expect(result.date).toBe('2026-09-09');
+  });
+
+  test('returns null when event has no status (not yet on sale)', () => {
+    expect(findAvailableEvent([tmEvent({ status: '' })], VEGAS, FROM, TO)).toBeNull();
+  });
+
+  test('returns match for presale event', () => {
+    const result = findAvailableEvent([tmEvent({ status: 'presale' })], VEGAS, FROM, TO);
+    expect(result).not.toBeNull();
   });
 });
 

@@ -1,13 +1,11 @@
 const axios = require('axios');
-const { chromium } = require('playwright');
 const { normalizeCity } = require('./scraper-utils');
 
 const DISCOVERY_URL = 'https://app.ticketmaster.com/discovery/v2/events.json';
 const REQUEST_TIMEOUT_MS = 15000;
 
-// Status-Codes aus der API, die direkt bedeuten, dass keine Tickets existieren
-const UNAVAILABLE_STATUS_CODES = ['offsale', 'cancelled', 'canceled'];
-const UNAVAILABLE_SUB_STATUS_CODES = ['soldout', 'unavailable'];
+// Only these status codes mean tickets are actually obtainable right now.
+const AVAILABLE_STATUS_CODES = ['onsale', 'presale'];
 
 /**
  * Fetch events from the Ticketmaster Discovery API.
@@ -64,21 +62,14 @@ function findAvailableEvent(events, cities, dateFrom, dateTo) {
   const to = dateTo ? new Date(`${dateTo}T23:59:59Z`) : null;
 
   for (const event of events) {
-    // 1. Haupt-Status aus der API prüfen
     const statusCode = (event?.dates?.status?.code || '').toLowerCase();
-    if (UNAVAILABLE_STATUS_CODES.includes(statusCode)) continue;
+    if (!AVAILABLE_STATUS_CODES.includes(statusCode)) continue;
 
-    // 2. Sub-Status aus der API prüfen
-    const subStatusCode = (event?.dates?.status?.subCode || '').toLowerCase();
-    if (UNAVAILABLE_SUB_STATUS_CODES.includes(subStatusCode)) continue;
-
-    // 3. Städte-Filter
     if (cities.length > 0) {
       const cityText = eventCityText(event);
       if (!cities.some(c => cityText.includes(c))) continue;
     }
 
-    // 4. Datums-Filter
     const date = eventDate(event);
     if (date) {
       const d = new Date(`${date}T12:00:00Z`);
@@ -92,8 +83,8 @@ function findAvailableEvent(events, cities, dateFrom, dateTo) {
 }
 
 /**
- * Check Ticketmaster for available tickets via the official Discovery API
- * AND cross-verify via a live Playwright browser check.
+ * Check Ticketmaster for available tickets via the official Discovery API.
+ * Signature kept compatible with the orchestrator (artist, city, dateFrom, dateTo).
  */
 async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
   const apiKey = process.env.TICKETMASTER_API_KEY;
@@ -118,51 +109,9 @@ async function scrapeTicketmaster(artist, city, dateFrom, dateTo) {
   const cities = normalizeCity(city);
   const match = findAvailableEvent(events, cities, dateFrom, dateTo);
 
-  // Wenn die API ein Event findet, starten wir jetzt den Live-Check mit Playwright
-  if (match && match.url) {
-    console.log(`API meldet Event als offen. Starte Playwright Live-Check auf: ${match.url}`);
-    
-    const browser = await chromium.launch({ headless: true });
-    // User-Agent faken, damit Ticketmaster den Bot nicht sofort blockiert
-    const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-    });
-    const page = await context.newPage();
-    
-    try {
-      // Seite laden (bricht nach 15 Sekunden ab, falls Ticketmaster laggt)
-      await page.goto(match.url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-      
-      // Gesamten Textinhalt der Seite auslesen
-      const pageContent = await page.textContent('body');
-      
-      // Prüfen, ob typische Ausverkauft-Texte auf der Seite stehen
-      const isSoldOut = 
-        pageContent.includes('Ausverkauft') || 
-        pageContent.includes('Sold Out') || 
-        pageContent.includes('Tickets zurzeit nicht verfügbar') ||
-        pageContent.includes('currently not available');
-
-      await browser.close();
-
-      if (isSoldOut) {
-        console.log(`Live-Check ergab: Das Event am ${match.date} ist leider ausverkauft.`);
-        return { success: true, found: false, url: null, date: null, platform: 'ticketmaster' };
-      }
-
-      console.log(`Erfolg! Tickets für den ${match.date} sind live verfügbar.`);
-      return { success: true, found: true, url: match.url, date: match.date, platform: 'ticketmaster' };
-
-    } catch (pwError) {
-      console.error("Playwright Live-Check fehlgeschlagen (z.B. Timeout/Bot-Schutz). Nutze API-Fallback:", pwError.message);
-      await browser.close();
-      
-      // Fallback: Wenn Playwright fehlschlägt (z.B. wegen Cloudflare), vertrauen wir sicherheitshalber der API,
-      // damit wir im Zweifel lieber einmal zu viel benachrichtigen als ein Ticket zu verpassen.
-      return { success: true, found: true, url: match.url, date: match.date, platform: 'ticketmaster' };
-    }
+  if (match) {
+    return { success: true, found: true, url: match.url, date: match.date, platform: 'ticketmaster' };
   }
-
   return { success: true, found: false, url: null, date: null, platform: 'ticketmaster' };
 }
 
