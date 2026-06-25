@@ -68,7 +68,7 @@ async function fetchWithPlaywright(url) {
 function interpretAxsResponse({ html, status, fetchUrl, city, dateFrom, dateTo }) {
   // AXS aggressively bot-blocks headless browsers (typically HTTP 403). Treat any
   // non-OK status as a loud error rather than silently reporting "no tickets found".
-  if (status !== null && status !== undefined && status >= 400) {
+  if (status !== null && status >= 400) {
     return { success: false, found: false, error: `AXS blocked the request (HTTP ${status}) — bot detection`, platform: 'axs' };
   }
 
@@ -94,14 +94,12 @@ function interpretAxsResponse({ html, status, fetchUrl, city, dateFrom, dateTo }
     return { success: true, found, url, date: structuredResult?.date || null, platform: 'axs' };
   }
 
-  const hasPositive = pageContent.includes('buy tickets') ||
-                      pageContent.includes('tickets from') ||
-                      pageContent.includes('get tickets');
-  // Only treat negative signals as a veto when there's no positive signal —
-  // "no results" commonly appears in JS bundles even on pages that have tickets.
-  const hasNegative = !hasPositive &&
-    (pageContent.includes('no results') || pageContent.includes('no events'));
-  const found = hasPositive && !hasNegative;
+  // A "buy/get tickets" CTA is the only reliable positive signal in the raw HTML;
+  // negative phrases like "no results" appear in JS bundles even on pages with
+  // tickets, so they can't veto a positive and aren't worth checking.
+  const found = pageContent.includes('buy tickets') ||
+                pageContent.includes('tickets from') ||
+                pageContent.includes('get tickets');
 
   let eventUrl = null;
   if (found) {
