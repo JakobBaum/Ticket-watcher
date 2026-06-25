@@ -1,51 +1,101 @@
-const axios = require('axios');
+const { chromium } = require('playwright');
 const { normalizeCity, isUrl, isSafeUrl, checkStructuredData } = require('./scraper-utils');
-const logger = require('../utils/logger');
 
 const AXS_SEARCH_URL = 'https://www.axs.com/events';
-const REQUEST_TIMEOUT_MS = 15000;
+const NAV_TIMEOUT_MS = 30000;
+const IDLE_TIMEOUT_MS = 10000;
 
-async function closeBrowser() {}
+let _browser = null;
 
-async function fetchWithHttp(url) {
-  const response = await axios.get(url, {
-    timeout: REQUEST_TIMEOUT_MS,
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache',
-      'Upgrade-Insecure-Requests': '1',
-    },
-    validateStatus: () => true,
-  });
-  return { html: response.data || '', status: response.status };
+async function getBrowser() {
+  if (!_browser) {
+    _browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+      ],
+    });
+  }
+  return _browser;
+}
+
+async function closeBrowser() {
+  if (_browser) {
+    await _browser.close();
+    _browser = null;
+  }
+}
+
+async function fetchWithPlaywright(url) {
+  const browser = await getBrowser();
+  let context;
+  let html = '';
+  let status = null;
+  try {
+    context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      viewport: { width: 1280, height: 800 },
+      locale: 'en-US',
+      extraHTTPHeaders: {
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      },
+    });
+
+    const page = await context.newPage();
+    page.setDefaultNavigationTimeout(NAV_TIMEOUT_MS);
+
+    // Patch navigator.webdriver so Cloudflare's JS challenge doesn't detect headless Chrome
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+      window.chrome = { runtime: {} };
+      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    });
+
+    // Block images/fonts/media to speed up load
+    await page.route('**/*', route => {
+      const type = route.request().resourceType();
+      if (['image', 'font', 'media', 'stylesheet'].includes(type)) {
+        route.abort();
+      } else {
+        route.continue();
+      }
+    });
+
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
+    status = response ? response.status() : null;
+    try {
+      await page.waitForLoadState('networkidle', { timeout: IDLE_TIMEOUT_MS });
+    } catch (_) {
+      // networkidle timed out — page content is still usable
+    }
+    html = await page.content();
+  } finally {
+    if (context) await context.close().catch(() => {});
+  }
+  return { html, status };
 }
 
 /**
- * Pure interpretation of a fetched AXS page. Separated from the browser fetch so
- * the block-detection and availability logic can be unit-tested with fixtures.
- * Returns the standard scraper result object.
+ * Pure interpretation of a fetched AXS page.
  */
 function interpretAxsResponse({ html, status, fetchUrl, city, dateFrom, dateTo }) {
-  // AXS aggressively bot-blocks headless browsers (typically HTTP 403). Treat any
-  // non-OK status as a loud error rather than silently reporting "no tickets found".
   if (status !== null && status >= 400) {
     return { success: false, found: false, error: `AXS blocked the request (HTTP ${status}) — bot detection`, platform: 'axs' };
   }
 
   const pageContent = html.toLowerCase();
 
-  // Challenge/captcha interstitials can be served with a 200 status, so check
-  // content regardless of page size.
   const isChallengePage =
     pageContent.includes('cf-challenge') ||
     pageContent.includes('access denied') ||
     (pageContent.includes('captcha') && pageContent.includes('robot'));
 
   if (isChallengePage) {
-    return { success: false, found: false, error: `AXS challenge/captcha page detected for ${fetchUrl} — scraper blocked`, platform: 'axs' };
+    return { success: false, found: false, error: `AXS challenge/captcha page detected — scraper blocked`, platform: 'axs' };
   }
 
   const cities = normalizeCity(city);
@@ -57,9 +107,6 @@ function interpretAxsResponse({ html, status, fetchUrl, city, dateFrom, dateTo }
     return { success: true, found, url, date: structuredResult?.date || null, platform: 'axs' };
   }
 
-  // A "buy/get tickets" CTA is the only reliable positive signal in the raw HTML;
-  // negative phrases like "no results" appear in JS bundles even on pages with
-  // tickets, so they can't veto a positive and aren't worth checking.
   const found = pageContent.includes('buy tickets') ||
                 pageContent.includes('tickets from') ||
                 pageContent.includes('get tickets');
@@ -85,9 +132,9 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
 
     let html, status;
     try {
-      ({ html, status } = await fetchWithHttp(fetchUrl));
+      ({ html, status } = await fetchWithPlaywright(fetchUrl));
     } catch (error) {
-      return { success: false, found: false, error: `HTTP fetch error: ${error.message}`, platform: 'axs' };
+      return { success: false, found: false, error: `Playwright error: ${error.message}`, platform: 'axs' };
     }
 
     return interpretAxsResponse({ html, status, fetchUrl, city, dateFrom, dateTo });

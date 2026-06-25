@@ -14,16 +14,14 @@ const {
   findAvailableEvent,
 } = require('../src/scrapers/ticketmaster');
 
-// Real-shaped Discovery API event (Shinedown, Las Vegas, on sale with inventory).
-function tmEvent({ city = 'Las Vegas', status = 'onsale', date = '2026-08-07', url = 'https://www.ticketmaster.com/shinedown-las-vegas-nevada-08-07-2026/event/1700612ABC', hasPriceRanges = true } = {}) {
-  const event = {
+// Real-shaped Discovery API event (Shinedown, Las Vegas, on sale).
+function tmEvent({ city = 'Las Vegas', status = 'onsale', date = '2026-08-07', url = 'https://www.ticketmaster.com/shinedown-las-vegas-nevada-08-07-2026/event/1700612ABC' } = {}) {
+  return {
     name: 'Shinedown',
     url,
     dates: { start: { localDate: date, dateTime: `${date}T02:00:00Z` }, status: { code: status } },
     _embedded: { venues: [{ name: 'Fontainebleau Las Vegas', city: { name: city }, state: { name: 'Nevada', stateCode: 'NV' } }] },
   };
-  if (hasPriceRanges) event.priceRanges = [{ type: 'standard', currency: 'USD', min: 85, max: 175 }];
-  return event;
 }
 
 const FROM = '2026-01-01';
