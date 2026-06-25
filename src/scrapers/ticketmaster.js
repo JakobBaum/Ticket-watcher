@@ -65,6 +65,10 @@ function findAvailableEvent(events, cities, dateFrom, dateTo) {
     const statusCode = (event?.dates?.status?.code || '').toLowerCase();
     if (!AVAILABLE_STATUS_CODES.includes(statusCode)) continue;
 
+    // Sold-out events remain 'onsale' but have no price ranges — skip them.
+    const hasPrices = Array.isArray(event.priceRanges) && event.priceRanges.length > 0;
+    if (!hasPrices) continue;
+
     if (cities.length > 0) {
       const cityText = eventCityText(event);
       if (!cities.some(c => cityText.includes(c))) continue;
