@@ -13,7 +13,8 @@ async function scrapeOne(event, platformEntry, city) {
 
   let result;
   if (platformName === 'ticketmaster') {
-    result = await scrapeTicketmaster(scrapeTarget, city, event.date_from, event.date_to);
+    // Discovery API searches by artist keyword, not by page URL.
+    result = await scrapeTicketmaster(event.artist, city, event.date_from, event.date_to);
   } else if (platformName === 'axs') {
     result = await scrapeAXS(scrapeTarget, city, event.date_from, event.date_to);
   } else {

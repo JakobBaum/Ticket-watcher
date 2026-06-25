@@ -96,16 +96,19 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
       return { success: true, found, url, date: structuredResult?.date || null, platform: 'axs' };
     }
 
-    const hasNegative = pageContent.includes('no results') || pageContent.includes('no events');
     const hasPositive = pageContent.includes('buy tickets') ||
                         pageContent.includes('tickets from') ||
                         pageContent.includes('get tickets');
+    // Only treat negative signals as a veto when there's no positive signal —
+    // "no results" commonly appears in JS bundles even on pages that have tickets.
+    const hasNegative = !hasPositive &&
+      (pageContent.includes('no results') || pageContent.includes('no events'));
     const found = hasPositive && !hasNegative;
 
     let eventUrl = null;
     if (found) {
       const urlMatch = html.match(/href="(https:\/\/www\.axs\.com\/[^"]+)"/);
-      if (urlMatch) eventUrl = urlMatch[1];
+      eventUrl = urlMatch ? urlMatch[1] : fetchUrl;
     }
 
     return { success: true, found, url: eventUrl, platform: 'axs' };

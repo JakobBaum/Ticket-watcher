@@ -78,6 +78,11 @@ function checkStructuredData(html, cities, dateFrom, dateTo) {
       const locationText = extractLocationText(event);
       if (!cities.some(c => locationText.includes(c))) continue;
 
+      // City matched — record it before date filtering so an out-of-range event
+      // returns null (no in-range stock) rather than undefined (which would
+      // wrongly trigger the loose text-heuristic fallback).
+      foundCityMatch = true;
+
       if (dateFrom || dateTo) {
         const startDate = event.startDate ? new Date(event.startDate + (event.startDate.includes('T') ? '' : 'T00:00:00')) : null;
         const from      = dateFrom ? new Date(dateFrom + 'T00:00:00') : null;
@@ -88,7 +93,6 @@ function checkStructuredData(html, cities, dateFrom, dateTo) {
         }
       }
 
-      foundCityMatch = true;
       const offers = Array.isArray(event.offers) ? event.offers : (event.offers ? [event.offers] : []);
       const available = offers.some(o =>
         o.availability && o.availability.toLowerCase().includes('instock')
