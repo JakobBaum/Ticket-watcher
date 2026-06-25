@@ -1,5 +1,8 @@
-const { chromium } = require('playwright');
+const { chromium } = require('playwright-extra');
+const StealthPlugin = require('playwright-extra-plugin-stealth');
 const { normalizeCity, isUrl, isSafeUrl, checkStructuredData } = require('./scraper-utils');
+
+chromium.use(StealthPlugin());
 
 const AXS_SEARCH_URL = 'https://www.axs.com/events';
 const NAV_TIMEOUT_MS = 30000;
@@ -12,7 +15,6 @@ async function getBrowser() {
     _browser = await chromium.launch({
       headless: true,
       args: [
-        '--disable-blink-features=AutomationControlled',
         '--no-sandbox',
         '--disable-setuid-sandbox',
       ],
@@ -46,14 +48,6 @@ async function fetchWithPlaywright(url) {
 
     const page = await context.newPage();
     page.setDefaultNavigationTimeout(NAV_TIMEOUT_MS);
-
-    // Patch navigator.webdriver so Cloudflare's JS challenge doesn't detect headless Chrome
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-      window.chrome = { runtime: {} };
-      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
-      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-    });
 
     // Block images/fonts/media to speed up load
     await page.route('**/*', route => {
