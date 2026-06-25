@@ -1,63 +1,26 @@
-const { chromium } = require('playwright');
+const axios = require('axios');
 const { normalizeCity, isUrl, isSafeUrl, checkStructuredData } = require('./scraper-utils');
 const logger = require('../utils/logger');
 
 const AXS_SEARCH_URL = 'https://www.axs.com/events';
-const NAV_TIMEOUT_MS = 30000;
-const IDLE_TIMEOUT_MS = 10000;
+const REQUEST_TIMEOUT_MS = 15000;
 
-let _browser = null;
+async function closeBrowser() {}
 
-async function getBrowser() {
-  if (!_browser) {
-    _browser = await chromium.launch({ headless: true });
-  }
-  return _browser;
-}
-
-async function closeBrowser() {
-  if (_browser) {
-    await _browser.close();
-    _browser = null;
-  }
-}
-
-async function fetchWithPlaywright(url) {
-  const browser = await getBrowser();
-  let context;
-  let html = '';
-  let status = null;
-  try {
-    context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      viewport: { width: 1280, height: 800 },
-      locale: 'en-US',
-    });
-    const page = await context.newPage();
-    page.setDefaultNavigationTimeout(NAV_TIMEOUT_MS);
-
-    // Block non-essential resources to reduce attack surface and speed up loading
-    await page.route('**/*', route => {
-      const type = route.request().resourceType();
-      if (['image', 'font', 'media', 'stylesheet'].includes(type)) {
-        route.abort();
-      } else {
-        route.continue();
-      }
-    });
-
-    const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
-    status = response ? response.status() : null;
-    try {
-      await page.waitForLoadState('networkidle', { timeout: IDLE_TIMEOUT_MS });
-    } catch (_) {
-      // networkidle timed out — page content is still usable
-    }
-    html = await page.content();
-  } finally {
-    if (context) await context.close().catch(() => {});
-  }
-  return { html, status };
+async function fetchWithHttp(url) {
+  const response = await axios.get(url, {
+    timeout: REQUEST_TIMEOUT_MS,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+      'Upgrade-Insecure-Requests': '1',
+    },
+    validateStatus: () => true,
+  });
+  return { html: response.data || '', status: response.status };
 }
 
 /**
@@ -122,9 +85,9 @@ async function scrapeAXS(artist, city, dateFrom, dateTo) {
 
     let html, status;
     try {
-      ({ html, status } = await fetchWithPlaywright(fetchUrl));
+      ({ html, status } = await fetchWithHttp(fetchUrl));
     } catch (error) {
-      return { success: false, found: false, error: `Playwright error: ${error.message}`, platform: 'axs' };
+      return { success: false, found: false, error: `HTTP fetch error: ${error.message}`, platform: 'axs' };
     }
 
     return interpretAxsResponse({ html, status, fetchUrl, city, dateFrom, dateTo });
